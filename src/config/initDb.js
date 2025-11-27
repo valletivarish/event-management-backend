@@ -1,7 +1,22 @@
 import pool from './database.js';
+import mysql from 'mysql2/promise';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 export async function initDatabase() {
   try {
+    // First, create database if it doesn't exist
+    const connection = await mysql.createConnection({
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASS
+    });
+    
+    await connection.execute(`CREATE DATABASE IF NOT EXISTS ${process.env.DB_NAME}`);
+    await connection.end();
+    
+    // Now create tables
     // Users table
     await pool.execute(`
       CREATE TABLE IF NOT EXISTS users (
