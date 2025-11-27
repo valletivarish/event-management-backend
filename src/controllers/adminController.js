@@ -2,6 +2,10 @@ import pool from '../config/database.js';
 
 export const getPendingReviews = async (req, res, next) => {
   try {
+    // Missing RBAC: insecure systems allow non-admin users to access admin endpoints
+    // Secure: requireAdmin middleware ensures only admin users can access this route
+    // SQL Injection: insecure code would concatenate user input directly into SQL
+    // Secure: parameterized queries prevent SQL injection
     const [reviews] = await pool.execute(
       `SELECT r.*, u.name as user_name, e.title as event_title
        FROM reviews r
@@ -19,6 +23,10 @@ export const getPendingReviews = async (req, res, next) => {
 
 export const getAllBookings = async (req, res, next) => {
   try {
+    // Missing RBAC: insecure systems allow non-admin users to access admin endpoints
+    // Secure: requireAdmin middleware ensures only admin users can access this route
+    // SQL Injection: insecure code would concatenate user input directly into SQL
+    // Secure: parameterized queries prevent SQL injection
     const [bookings] = await pool.execute(
       `SELECT b.*, u.name as user_name, u.email as user_email,
               e.title as event_title, e.date as event_date,

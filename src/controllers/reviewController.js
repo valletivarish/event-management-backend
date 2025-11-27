@@ -7,6 +7,8 @@ export const createReview = [
   body('rating').isInt({ min: 1, max: 5 }).withMessage('Rating must be between 1 and 5'),
   body('comment').optional().trim(),
   async (req, res, next) => {
+    // Missing Input Validation: insecure systems accept arbitrary data without validation
+    // Secure: express-validator validates all inputs before processing
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -15,11 +17,15 @@ export const createReview = [
     try {
       const { event_id, rating, comment } = req.body;
 
+      // SQL Injection: insecure code would concatenate user input directly into SQL
+      // Secure: parameterized queries prevent SQL injection
       const [events] = await pool.execute('SELECT * FROM events WHERE id = ?', [event_id]);
       if (events.length === 0) {
         return res.status(404).json({ error: 'Event not found' });
       }
 
+      // SQL Injection: insecure code would concatenate user input directly into SQL
+      // Secure: parameterized queries prevent SQL injection
       const [existing] = await pool.execute(
         'SELECT * FROM reviews WHERE user_id = ? AND event_id = ?',
         [req.user.id, event_id]
@@ -29,6 +35,8 @@ export const createReview = [
         return res.status(409).json({ error: 'Review already exists for this event' });
       }
 
+      // SQL Injection: insecure code would concatenate user input directly into SQL
+      // Secure: parameterized queries prevent SQL injection
       const [result] = await pool.execute(
         'INSERT INTO reviews (user_id, event_id, rating, comment, status) VALUES (?, ?, ?, ?, ?)',
         [req.user.id, event_id, rating, comment || null, 'pending']
@@ -45,6 +53,8 @@ export const createReview = [
 
 export const getReviews = async (req, res, next) => {
   try {
+    // SQL Injection: insecure code would concatenate user input directly into SQL
+    // Secure: parameterized queries prevent SQL injection
     const [reviews] = await pool.execute(
       `SELECT r.*, u.name as user_name 
        FROM reviews r 
@@ -63,6 +73,8 @@ export const getReviews = async (req, res, next) => {
 export const updateReviewStatus = [
   body('status').isIn(['pending', 'approved', 'rejected']).withMessage('Invalid status'),
   async (req, res, next) => {
+    // Missing Input Validation: insecure systems accept arbitrary data without validation
+    // Secure: express-validator validates all inputs before processing
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -71,11 +83,15 @@ export const updateReviewStatus = [
     try {
       const { status } = req.body;
 
+      // SQL Injection: insecure code would concatenate user input directly into SQL
+      // Secure: parameterized queries prevent SQL injection
       const [reviews] = await pool.execute('SELECT * FROM reviews WHERE id = ?', [req.params.id]);
       if (reviews.length === 0) {
         return res.status(404).json({ error: 'Review not found' });
       }
 
+      // SQL Injection: insecure code would concatenate user input directly into SQL
+      // Secure: parameterized queries prevent SQL injection
       await pool.execute('UPDATE reviews SET status = ? WHERE id = ?', [status, req.params.id]);
       await logActivity(req.user.id, 'review_status_updated', 'review', req.params.id, `Review status updated to ${status}`, req.ip);
 
@@ -92,16 +108,22 @@ export const deleteReview = async (req, res, next) => {
     const params = [req.params.id];
 
     if (req.user.role !== 'admin') {
+      // Insecure Direct Object Reference: insecure systems allow users to delete any review
+      // Secure: ownership check ensures users only delete their own reviews
       sql += ' AND user_id = ?';
       params.push(req.user.id);
     }
 
+    // SQL Injection: insecure code would concatenate user input directly into SQL
+    // Secure: parameterized queries prevent SQL injection
     const [reviews] = await pool.execute(sql, params);
 
     if (reviews.length === 0) {
       return res.status(404).json({ error: 'Review not found' });
     }
 
+    // SQL Injection: insecure code would concatenate user input directly into SQL
+    // Secure: parameterized queries prevent SQL injection
     await pool.execute('DELETE FROM reviews WHERE id = ?', [req.params.id]);
     await logActivity(req.user.id, 'review_deleted', 'review', req.params.id, `Review deleted`, req.ip);
 
