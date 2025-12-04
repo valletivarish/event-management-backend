@@ -1,6 +1,6 @@
 import { logActivity } from '../services/logService.js';
 
-export const uploadImage = (req, res, next) => {
+export const uploadImage = (req, res, _next) => {
   // File Upload Risks: insecure systems do not validate file types or sizes
   // Secure: multer middleware validates file type and size before accepting uploads
   if (!req.file) {

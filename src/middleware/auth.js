@@ -42,7 +42,7 @@ export const authenticate = async (req, res, next) => {
     
     req.user = { id: user.id, email: user.email, role: user.role };
     next();
-  } catch (error) {
+  } catch (_error) {
     return res.status(401).json({ error: 'Invalid token' });
   }
 };

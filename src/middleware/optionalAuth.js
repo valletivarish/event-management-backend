@@ -11,7 +11,7 @@ export const optionalAuthenticate = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
-  } catch (error) {
+  } catch (_error) {
     // Invalid token, but continue without authentication
   }
   
