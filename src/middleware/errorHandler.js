@@ -1,6 +1,6 @@
 import { logActivity } from '../services/logService.js';
 
-export const errorHandler = async (err, req, res, next) => {
+export const errorHandler = async (err, req, res, _next) => {
   // Error Leakage: insecure systems expose SQL errors or stack traces to users
   // Secure: generic error messages prevent information disclosure
   console.error('Error:', err);

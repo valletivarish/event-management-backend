@@ -42,6 +42,8 @@ export const getEvents = [
 
 export const getEventById = async (req, res, next) => {
   try {
+    // SQL Injection: insecure code would concatenate user input directly into SQL
+    // Secure: parameterized queries prevent SQL injection
     const [events] = await pool.execute(
       'SELECT e.*, c.name as category_name FROM events e LEFT JOIN categories c ON e.category_id = c.id WHERE e.id = ?',
       [req.params.id]
@@ -71,6 +73,8 @@ export const createEvent = [
   body('capacity').isInt({ min: 1 }).withMessage('Capacity must be at least 1'),
   body('ticketTypes').isArray().withMessage('Ticket types must be an array'),
   async (req, res, next) => {
+    // Missing Input Validation: insecure systems accept arbitrary data without validation
+    // Secure: express-validator validates all inputs before processing
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -83,6 +87,8 @@ export const createEvent = [
       await connection.beginTransaction();
 
       try {
+        // SQL Injection: insecure code would concatenate user input directly into SQL
+        // Secure: parameterized queries prevent SQL injection
         const [result] = await connection.execute(
           'INSERT INTO events (title, description, category_id, date, location, capacity, available_seats, image_url, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
           [title, description || null, category_id || null, date, location, capacity, capacity, image_url || null, req.user.id]
@@ -92,6 +98,8 @@ export const createEvent = [
 
         if (ticketTypes && ticketTypes.length > 0) {
           for (const ticketType of ticketTypes) {
+            // SQL Injection: insecure code would concatenate user input directly into SQL
+            // Secure: parameterized queries prevent SQL injection
             await connection.execute(
               'INSERT INTO ticket_types (event_id, type_name, price, quantity, available_quantity) VALUES (?, ?, ?, ?, ?)',
               [eventId, ticketType.type_name, ticketType.price, ticketType.quantity, ticketType.quantity]
@@ -123,6 +131,8 @@ export const updateEvent = [
   body('location').optional().trim().notEmpty(),
   body('capacity').optional().isInt({ min: 1 }),
   async (req, res, next) => {
+    // Missing Input Validation: insecure systems accept arbitrary data without validation
+    // Secure: express-validator validates all inputs before processing
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -132,6 +142,8 @@ export const updateEvent = [
       const { title, description, category_id, date, location, capacity } = req.body;
       const eventId = req.params.id;
 
+      // SQL Injection: insecure code would concatenate user input directly into SQL
+      // Secure: parameterized queries prevent SQL injection
       const [events] = await pool.execute('SELECT * FROM events WHERE id = ?', [eventId]);
       if (events.length === 0) {
         return res.status(404).json({ error: 'Event not found' });
@@ -156,6 +168,8 @@ export const updateEvent = [
       }
 
       params.push(eventId);
+      // SQL Injection: insecure code would concatenate user input directly into SQL
+      // Secure: parameterized queries prevent SQL injection
       await pool.execute(`UPDATE events SET ${updates.join(', ')} WHERE id = ?`, params);
 
       await logActivity(req.user.id, 'event_updated', 'event', eventId, `Event updated`, req.ip);
@@ -169,11 +183,15 @@ export const updateEvent = [
 
 export const deleteEvent = async (req, res, next) => {
   try {
+    // SQL Injection: insecure code would concatenate user input directly into SQL
+    // Secure: parameterized queries prevent SQL injection
     const [events] = await pool.execute('SELECT * FROM events WHERE id = ?', [req.params.id]);
     if (events.length === 0) {
       return res.status(404).json({ error: 'Event not found' });
     }
 
+    // SQL Injection: insecure code would concatenate user input directly into SQL
+    // Secure: parameterized queries prevent SQL injection
     await pool.execute('DELETE FROM events WHERE id = ?', [req.params.id]);
     await logActivity(req.user.id, 'event_deleted', 'event', req.params.id, `Event deleted`, req.ip);
 

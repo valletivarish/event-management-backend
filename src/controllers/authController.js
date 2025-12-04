@@ -23,6 +23,8 @@ export const register = [
       // Secure: bcrypt hashes passwords before storage
       const hashedPassword = await bcrypt.hash(password, 10);
 
+      // SQL Injection: insecure code would concatenate user input directly into SQL
+      // Secure: parameterized queries prevent SQL injection
       const [result] = await pool.execute(
         'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
         [name, email, hashedPassword]
@@ -41,6 +43,8 @@ export const login = [
   body('email').isEmail().normalizeEmail(),
   body('password').notEmpty(),
   async (req, res, next) => {
+    // Missing Input Validation: insecure systems accept arbitrary data without validation
+    // Secure: express-validator validates all inputs before processing
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -49,6 +53,8 @@ export const login = [
     try {
       const { email, password } = req.body;
 
+      // SQL Injection: insecure code would concatenate user input directly into SQL
+      // Secure: parameterized queries prevent SQL injection
       const [users] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
       if (users.length === 0) {
         return res.status(401).json({ error: 'Invalid credentials' });
@@ -60,8 +66,10 @@ export const login = [
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
+      // Token Invalidation: insecure systems don't invalidate tokens when credentials change
+      // Secure: include token_version in JWT to invalidate tokens when email/password changes
       const token = jwt.sign(
-        { id: user.id, email: user.email, role: user.role },
+        { id: user.id, email: user.email, role: user.role, tokenVersion: user.token_version || 0 },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
