@@ -1,6 +1,7 @@
 import { body, validationResult } from 'express-validator';
 import pool from '../config/database.js';
 import { logActivity } from '../services/logService.js';
+import { requireAdminRole } from '../utils/authorization.js';
 
 export const createReview = [
   body('event_id').isInt().withMessage('Event ID is required'),
@@ -78,6 +79,12 @@ export const updateReviewStatus = [
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
+    }
+
+    // @PreAuthorize("hasRole('ADMIN')") - Controller-level authorization check
+    // Defense-in-depth: Even if middleware is bypassed, this prevents unauthorized access
+    if (!requireAdminRole(req, res)) {
+      return;
     }
 
     try {

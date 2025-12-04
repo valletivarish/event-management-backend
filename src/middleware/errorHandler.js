@@ -5,6 +5,15 @@ export const errorHandler = async (err, req, res, _next) => {
   // Secure: generic error messages prevent information disclosure
   console.error('Error:', err);
 
+  // Handle multer file upload errors
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ error: 'File size too large. Maximum size is 5MB.' });
+  }
+
+  if (err.message && err.message.includes('Invalid file type')) {
+    return res.status(400).json({ error: err.message });
+  }
+
   if (err.name === 'ValidationError') {
     return res.status(400).json({ error: 'Validation failed', details: err.errors });
   }

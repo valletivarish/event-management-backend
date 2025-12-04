@@ -1,6 +1,7 @@
 import { body, validationResult, query } from 'express-validator';
 import pool from '../config/database.js';
 import { logActivity } from '../services/logService.js';
+import { requireAdminRole } from '../utils/authorization.js';
 
 export const getEvents = [
   query('category').optional().isInt(),
@@ -40,6 +41,11 @@ export const getEvents = [
   }
 ];
 
+/**
+ * Get Event by ID
+ * 
+ * Retrieves a single event with its details and ticket types.
+ */
 export const getEventById = async (req, res, next) => {
   try {
     // SQL Injection: insecure code would concatenate user input directly into SQL
@@ -64,7 +70,13 @@ export const getEventById = async (req, res, next) => {
   }
 };
 
+/**
+ * Create Event Endpoint (Admin Only)
+ * 
+ * Creates a new event with ticket types. All inputs are validated before processing.
+ */
 export const createEvent = [
+  // Validate all required and optional fields
   body('title').trim().notEmpty().withMessage('Title is required'),
   body('description').optional().trim(),
   body('category_id').optional().isInt(),
@@ -73,16 +85,34 @@ export const createEvent = [
   body('capacity').isInt({ min: 1 }).withMessage('Capacity must be at least 1'),
   body('ticketTypes').isArray().withMessage('Ticket types must be an array'),
   async (req, res, next) => {
-    // Missing Input Validation: insecure systems accept arbitrary data without validation
-    // Secure: express-validator validates all inputs before processing
+    // Check if input validation passed
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
+    // @PreAuthorize("hasRole('ADMIN')") - Controller-level authorization check
+    // Defense-in-depth: Even if middleware is bypassed, this prevents unauthorized access
+    if (!requireAdminRole(req, res)) {
+      return;
+    }
+
     try {
       const { title, description, category_id, date, location, capacity, ticketTypes, image_url } = req.body;
 
+      // Validate that total ticket quantities don't exceed event capacity
+      // This ensures we don't sell more tickets than the venue can hold
+      if (ticketTypes && ticketTypes.length > 0) {
+        const totalTicketQuantity = ticketTypes.reduce((sum, tt) => sum + (parseInt(tt.quantity) || 0), 0);
+        if (totalTicketQuantity > capacity) {
+          return res.status(400).json({ 
+            error: `Total ticket quantity (${totalTicketQuantity}) cannot exceed event capacity (${capacity})` 
+          });
+        }
+      }
+
+      // Use database transaction to ensure all-or-nothing operation
+      // If anything fails, everything rolls back
       const connection = await pool.getConnection();
       await connection.beginTransaction();
 
@@ -96,6 +126,7 @@ export const createEvent = [
 
         const eventId = result.insertId;
 
+        // Insert ticket types for this event
         if (ticketTypes && ticketTypes.length > 0) {
           for (const ticketType of ticketTypes) {
             // SQL Injection: insecure code would concatenate user input directly into SQL
@@ -123,7 +154,13 @@ export const createEvent = [
   }
 ];
 
+/**
+ * Update Event Endpoint (Admin Only)
+ * 
+ * Updates an existing event. All fields are optional - only provided fields will be updated.
+ */
 export const updateEvent = [
+  // Validate optional fields (all fields can be omitted for partial updates)
   body('title').optional().trim().notEmpty(),
   body('description').optional().trim(),
   body('category_id').optional().isInt(),
@@ -131,15 +168,20 @@ export const updateEvent = [
   body('location').optional().trim().notEmpty(),
   body('capacity').optional().isInt({ min: 1 }),
   async (req, res, next) => {
-    // Missing Input Validation: insecure systems accept arbitrary data without validation
-    // Secure: express-validator validates all inputs before processing
+    // Check if input validation passed
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    try {
-      const { title, description, category_id, date, location, capacity } = req.body;
+    // @PreAuthorize("hasRole('ADMIN')") - Controller-level authorization check
+    // Defense-in-depth: Even if middleware is bypassed, this prevents unauthorized access
+    if (!requireAdminRole(req, res)) {
+      return;
+    }
+
+      try {
+        const { title, description, category_id, date, location, capacity, ticketTypes, image_url } = req.body;
       const eventId = req.params.id;
 
       // SQL Injection: insecure code would concatenate user input directly into SQL
@@ -147,6 +189,20 @@ export const updateEvent = [
       const [events] = await pool.execute('SELECT * FROM events WHERE id = ?', [eventId]);
       if (events.length === 0) {
         return res.status(404).json({ error: 'Event not found' });
+      }
+
+      // Use new capacity if provided, otherwise keep existing capacity
+      const currentCapacity = capacity || events[0].capacity;
+
+      // Validate that total ticket quantities don't exceed event capacity
+      // This check only runs if ticket types are being updated
+      if (ticketTypes && ticketTypes.length > 0) {
+        const totalTicketQuantity = ticketTypes.reduce((sum, tt) => sum + (parseInt(tt.quantity) || 0), 0);
+        if (totalTicketQuantity > currentCapacity) {
+          return res.status(400).json({ 
+            error: `Total ticket quantity (${totalTicketQuantity}) cannot exceed event capacity (${currentCapacity})` 
+          });
+        }
       }
 
       const updates = [];
@@ -162,19 +218,55 @@ export const updateEvent = [
         updates.push('available_seats = available_seats + (? - capacity)');
         params.push(capacity, capacity);
       }
+      if (image_url !== undefined) { updates.push('image_url = ?'); params.push(image_url || null); }
 
-      if (updates.length === 0) {
+      // Check if there are any updates (either event fields or ticket types)
+      if (updates.length === 0 && ticketTypes === undefined) {
         return res.status(400).json({ error: 'No fields to update' });
       }
 
-      params.push(eventId);
-      // SQL Injection: insecure code would concatenate user input directly into SQL
-      // Secure: parameterized queries prevent SQL injection
-      await pool.execute(`UPDATE events SET ${updates.join(', ')} WHERE id = ?`, params);
+      const connection = await pool.getConnection();
+      await connection.beginTransaction();
 
-      await logActivity(req.user.id, 'event_updated', 'event', eventId, `Event updated`, req.ip);
+      try {
+        // Update event fields if there are any
+        if (updates.length > 0) {
+          const updateParams = [...params, eventId];
+          // SQL Injection: insecure code would concatenate user input directly into SQL
+          // Secure: parameterized queries prevent SQL injection
+          await connection.execute(`UPDATE events SET ${updates.join(', ')} WHERE id = ?`, updateParams);
+        }
 
-      res.json({ message: 'Event updated successfully' });
+        // Update ticket types if provided
+        if (ticketTypes !== undefined) {
+          // Delete existing ticket types
+          // SQL Injection: insecure code would concatenate user input directly into SQL
+          // Secure: parameterized queries prevent SQL injection
+          await connection.execute('DELETE FROM ticket_types WHERE event_id = ?', [eventId]);
+
+          // Insert new ticket types
+          if (ticketTypes && ticketTypes.length > 0) {
+            for (const ticketType of ticketTypes) {
+              // SQL Injection: insecure code would concatenate user input directly into SQL
+              // Secure: parameterized queries prevent SQL injection
+              await connection.execute(
+                'INSERT INTO ticket_types (event_id, type_name, price, quantity, available_quantity) VALUES (?, ?, ?, ?, ?)',
+                [eventId, ticketType.type_name, ticketType.price, ticketType.quantity, ticketType.quantity]
+              );
+            }
+          }
+        }
+
+        await connection.commit();
+        await logActivity(req.user.id, 'event_updated', 'event', eventId, `Event updated`, req.ip);
+
+        res.json({ message: 'Event updated successfully' });
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
     } catch (error) {
       next(error);
     }
@@ -182,6 +274,12 @@ export const updateEvent = [
 ];
 
 export const deleteEvent = async (req, res, next) => {
+  // @PreAuthorize("hasRole('ADMIN')") - Controller-level authorization check
+  // Defense-in-depth: Even if middleware is bypassed, this prevents unauthorized access
+  if (!requireAdminRole(req, res)) {
+    return;
+  }
+
   try {
     // SQL Injection: insecure code would concatenate user input directly into SQL
     // Secure: parameterized queries prevent SQL injection

@@ -1,5 +1,6 @@
 import { query, validationResult } from 'express-validator';
 import pool from '../config/database.js';
+import { requireAdminRole } from '../utils/authorization.js';
 
 export const getLogs = [
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
@@ -8,6 +9,12 @@ export const getLogs = [
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
+    }
+
+    // @PreAuthorize("hasRole('ADMIN')") - Controller-level authorization check
+    // Defense-in-depth: Even if middleware is bypassed, this prevents unauthorized access
+    if (!requireAdminRole(req, res)) {
+      return;
     }
 
     try {

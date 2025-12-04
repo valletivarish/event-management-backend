@@ -1,6 +1,7 @@
 import { body, validationResult } from 'express-validator';
 import pool from '../config/database.js';
 import { logActivity } from '../services/logService.js';
+import { requireAdminRole } from '../utils/authorization.js';
 
 export const getCategories = async (req, res, next) => {
   try {
@@ -53,6 +54,12 @@ export const updateCategory = [
       return res.status(400).json({ errors: errors.array() });
     }
 
+    // @PreAuthorize("hasRole('ADMIN')") - Controller-level authorization check
+    // Defense-in-depth: Even if middleware is bypassed, this prevents unauthorized access
+    if (!requireAdminRole(req, res)) {
+      return;
+    }
+
     try {
       const { name, description } = req.body;
       const categoryId = req.params.id;
@@ -89,6 +96,12 @@ export const updateCategory = [
 ];
 
 export const deleteCategory = async (req, res, next) => {
+  // @PreAuthorize("hasRole('ADMIN')") - Controller-level authorization check
+  // Defense-in-depth: Even if middleware is bypassed, this prevents unauthorized access
+  if (!requireAdminRole(req, res)) {
+    return;
+  }
+
   try {
     // SQL Injection: insecure code would concatenate user input directly into SQL
     // Secure: parameterized queries prevent SQL injection

@@ -1,6 +1,13 @@
 import pool from '../config/database.js';
+import { requireAdminRole } from '../utils/authorization.js';
 
 export const getPendingReviews = async (req, res, next) => {
+  // @PreAuthorize("hasRole('ADMIN')") - Controller-level authorization check
+  // Defense-in-depth: Even if middleware is bypassed, this prevents unauthorized access
+  if (!requireAdminRole(req, res)) {
+    return;
+  }
+
   try {
     // Missing RBAC: insecure systems allow non-admin users to access admin endpoints
     // Secure: requireAdmin middleware ensures only admin users can access this route
@@ -22,6 +29,12 @@ export const getPendingReviews = async (req, res, next) => {
 };
 
 export const getAllBookings = async (req, res, next) => {
+  // @PreAuthorize("hasRole('ADMIN')") - Controller-level authorization check
+  // Defense-in-depth: Even if middleware is bypassed, this prevents unauthorized access
+  if (!requireAdminRole(req, res)) {
+    return;
+  }
+
   try {
     // Missing RBAC: insecure systems allow non-admin users to access admin endpoints
     // Secure: requireAdmin middleware ensures only admin users can access this route

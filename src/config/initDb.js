@@ -134,8 +134,8 @@ export async function initDatabase() {
     const bcrypt = await import('bcrypt');
     // Strong Password Policy: use strong passwords even for test accounts
     // Secure: test accounts use passwords that meet security requirements
-    const adminPassword = await bcrypt.default.hash('Admin@2024', 10);
-    const userPassword = await bcrypt.default.hash('User@2024', 10);
+    const adminPassword = await bcrypt.default.hash('Admin@2025', 10);
+    const userPassword = await bcrypt.default.hash('User@2025', 10);
     
     // Create admin user
     const [adminUsers] = await pool.execute('SELECT * FROM users WHERE email = ?', ['admin@ems.com']);
@@ -144,7 +144,7 @@ export async function initDatabase() {
         'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
         ['Admin User', 'admin@ems.com', adminPassword, 'admin']
       );
-      console.log('Admin user created: admin@ems.com / Admin@2024');
+      console.log('Admin user created: admin@ems.com / Admin@2025');
     }
     
     // Create regular user
@@ -154,7 +154,7 @@ export async function initDatabase() {
         'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
         ['Regular User', 'user@ems.com', userPassword, 'user']
       );
-      console.log('Regular user created: user@ems.com / User@2024');
+      console.log('Regular user created: user@ems.com / User@2025');
     }
 
     // Get user IDs for mock data
