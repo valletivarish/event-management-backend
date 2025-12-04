@@ -132,16 +132,19 @@ export async function initDatabase() {
 
     // Create default users if not exists
     const bcrypt = await import('bcrypt');
-    const defaultPassword = await bcrypt.default.hash('password123', 10);
+    // Strong Password Policy: use strong passwords even for test accounts
+    // Secure: test accounts use passwords that meet security requirements
+    const adminPassword = await bcrypt.default.hash('Admin@2024', 10);
+    const userPassword = await bcrypt.default.hash('User@2024', 10);
     
     // Create admin user
     const [adminUsers] = await pool.execute('SELECT * FROM users WHERE email = ?', ['admin@ems.com']);
     if (adminUsers.length === 0) {
       await pool.execute(
         'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
-        ['Admin User', 'admin@ems.com', defaultPassword, 'admin']
+        ['Admin User', 'admin@ems.com', adminPassword, 'admin']
       );
-      console.log('Admin user created: admin@ems.com / password123');
+      console.log('Admin user created: admin@ems.com / Admin@2024');
     }
     
     // Create regular user
@@ -149,9 +152,9 @@ export async function initDatabase() {
     if (regularUsers.length === 0) {
       await pool.execute(
         'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
-        ['Regular User', 'user@ems.com', defaultPassword, 'user']
+        ['Regular User', 'user@ems.com', userPassword, 'user']
       );
-      console.log('Regular user created: user@ems.com / password123');
+      console.log('Regular user created: user@ems.com / User@2024');
     }
 
     // Get user IDs for mock data

@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt';
 import { body, validationResult } from 'express-validator';
 import pool from '../config/database.js';
 import { logActivity } from '../services/logService.js';
+import { validatePasswordStrength } from '../utils/passwordValidator.js';
 
 export const getProfile = async (req, res, next) => {
   try {
@@ -76,13 +77,22 @@ export const updateProfile = [
 
 export const changePassword = [
   body('currentPassword').notEmpty().withMessage('Current password is required'),
-  body('newPassword').isLength({ min: 6 }).withMessage('New password must be at least 6 characters'),
+  body('newPassword').isLength({ min: 8 }).withMessage('New password must be at least 8 characters'),
   async (req, res, next) => {
     // Missing Input Validation: insecure systems accept arbitrary data without validation
     // Secure: express-validator validates all inputs before processing
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
+    }
+
+    // Weak Password Policy: insecure systems accept easily guessable passwords
+    // Secure: enforce strong password requirements to prevent brute force attacks
+    const passwordValidation = validatePasswordStrength(req.body.newPassword);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({ 
+        errors: passwordValidation.errors.map(error => ({ msg: error }))
+      });
     }
 
     try {
